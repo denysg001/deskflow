@@ -26,7 +26,7 @@ export function NotificationCenter() {
   const loadNotifications = useCallback(async () => {
     if (!enabled) return;
     const data = await api<{ items: Notification[]; unreadCount: number }>("/notifications?limit=8");
-    const unreadItems = data.items.filter((item) => !item.readAt);
+    const unreadItems = data.items.filter((item) => !item.isRead);
     const newItems = unreadItems.filter((item) => !knownIds.current.has(item.id));
     if (initialized.current && newItems.length) setToast(newItems[0]);
     data.items.forEach((item) => knownIds.current.add(item.id));
@@ -77,15 +77,15 @@ export function NotificationCenter() {
                 <button className="block w-full text-left" onClick={() => openTicket(item)}>
                   <div className="mb-1 flex items-center justify-between gap-2">
                     <span className="text-sm font-black">{item.ticket.protocol}</span>
-                    {!item.readAt && <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary">Nova</span>}
+                    {!item.isRead && <span className="rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-bold text-primary">Nova</span>}
                   </div>
                   <p className="text-sm text-slate-200">{item.ticket.client.name}</p>
-                  <p className="line-clamp-2 text-xs text-slate-400">{item.messagePreview}</p>
+                  <p className="line-clamp-2 text-xs text-slate-400">{item.message || item.messagePreview}</p>
                   <p className="mt-2 text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleString("pt-BR")}</p>
                 </button>
                 <div className="mt-3 flex gap-2">
                   <Button className="h-8 px-3 text-xs" variant="secondary" onClick={() => openTicket(item)}><ExternalLink className="mr-1" size={13} /> Abrir</Button>
-                  {!item.readAt && <Button className="h-8 px-3 text-xs" variant="ghost" onClick={() => markAsRead(item.id)}><Check className="mr-1" size={13} /> Lida</Button>}
+                  {!item.isRead && <Button className="h-8 px-3 text-xs" variant="ghost" onClick={() => markAsRead(item.id)}><Check className="mr-1" size={13} /> Lida</Button>}
                 </div>
               </div>
             ))}
@@ -101,7 +101,7 @@ export function NotificationCenter() {
         <div className="fixed right-4 top-4 z-50 w-[min(380px,calc(100vw-2rem))] rounded-2xl border bg-slate-950 p-4 text-white shadow-2xl">
           <p className="text-sm font-black">Nova interação do cliente no chamado {toast.ticket.protocol}</p>
           <p className="mt-1 text-sm text-slate-300">{toast.ticket.client.name}</p>
-          <p className="mt-2 line-clamp-2 text-sm text-slate-400">{toast.messagePreview}</p>
+          <p className="mt-2 line-clamp-2 text-sm text-slate-400">{toast.message || toast.messagePreview}</p>
           <p className="mt-2 text-xs text-slate-500">{new Date(toast.createdAt).toLocaleString("pt-BR")}</p>
           <div className="mt-3 flex gap-2">
             <Button className="h-9" onClick={() => openTicket(toast)}>Abrir chamado</Button>

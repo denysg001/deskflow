@@ -42,10 +42,10 @@ export default function AdminDashboard() {
               <Link key={item.id} href={`/tickets/${item.ticket.id}`} className="block rounded-2xl border bg-muted/50 p-3 transition hover:border-primary">
                 <div className="mb-1 flex items-center justify-between gap-3">
                   <span className="font-black">{item.ticket.protocol}</span>
-                  {!item.readAt && <span className="rounded-full bg-primary/15 px-2 py-1 text-xs font-bold text-primary">Nova</span>}
+                  {!item.isRead && <span className="rounded-full bg-primary/15 px-2 py-1 text-xs font-bold text-primary">Nova</span>}
                 </div>
                 <p className="text-sm text-muted-foreground">{item.ticket.client.name}</p>
-                <p className="line-clamp-2 text-sm">{item.messagePreview}</p>
+                <p className="line-clamp-2 text-sm">{item.message || item.messagePreview}</p>
                 <p className="mt-2 text-xs text-muted-foreground">{new Date(item.createdAt).toLocaleString("pt-BR")}</p>
               </Link>
             ))}

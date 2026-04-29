@@ -34,7 +34,9 @@ export type Ticket = {
 export type Notification = {
   id: string;
   title: string;
+  message: string;
   messagePreview: string;
+  isRead: boolean;
   readAt?: string | null;
   createdAt: string;
   ticket: {

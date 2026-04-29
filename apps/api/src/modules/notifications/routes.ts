@@ -17,7 +17,7 @@ export async function notificationRoutes(app: FastifyInstance) {
       prisma.notification.findMany({
         where,
         include: notificationInclude,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ isRead: "asc" }, { createdAt: "desc" }],
         take: query.limit
       }),
       prisma.notification.count({ where: unreadNotificationWhere(request.user!) })
@@ -29,14 +29,14 @@ export async function notificationRoutes(app: FastifyInstance) {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     const notification = await prisma.notification.findFirst({ where: { id, ...notificationRecipientWhere(request.user!) } });
     if (!notification) return reply.code(404).send({ message: "Notificação não encontrada." });
-    return { item: await prisma.notification.update({ where: { id }, data: { readAt: new Date() } }) };
+    return { item: await prisma.notification.update({ where: { id }, data: { isRead: true, readAt: new Date() } }) };
   });
 
   app.post("/notifications/read-ticket/:ticketId", { preHandler: authorize(["ADMIN", "OPERATOR"]) }, async (request) => {
     const { ticketId } = z.object({ ticketId: z.string() }).parse(request.params);
     await prisma.notification.updateMany({
       where: { ticketId, ...unreadNotificationWhere(request.user!) },
-      data: { readAt: new Date() }
+      data: { isRead: true, readAt: new Date() }
     });
     return { ok: true };
   });

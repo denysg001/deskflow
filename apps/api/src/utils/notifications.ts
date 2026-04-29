@@ -9,7 +9,7 @@ export function notificationRecipientWhere(user: AuthUser) {
 }
 
 export function unreadNotificationWhere(user: AuthUser) {
-  return { ...notificationRecipientWhere(user), readAt: null };
+  return { ...notificationRecipientWhere(user), isRead: false };
 }
 
 export async function createClientInteractionNotifications(ticketId: string, commentId: string, message: string) {
@@ -23,6 +23,7 @@ export async function createClientInteractionNotifications(ticketId: string, com
     ticketId,
     commentId,
     title: `Nova interação do cliente no chamado ${ticket.protocol}`,
+    message,
     messagePreview: preview
   };
 
@@ -49,6 +50,6 @@ export async function markTicketNotificationsRead(ticketId: string, user: AuthUs
   if (user.role === "CLIENT") return;
   await prisma.notification.updateMany({
     where: { ticketId, ...unreadNotificationWhere(user) },
-    data: { readAt: new Date() }
+    data: { isRead: true, readAt: new Date() }
   });
 }

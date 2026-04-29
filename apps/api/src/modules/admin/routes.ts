@@ -29,7 +29,7 @@ export async function adminRoutes(app: FastifyInstance) {
       prisma.notification.findMany({
         where: notificationWhere,
         include: { ticket: { include: { client: true } } },
-        orderBy: [{ readAt: "asc" }, { createdAt: "desc" }],
+        orderBy: [{ isRead: "asc" }, { createdAt: "desc" }],
         take: 6
       }),
       prisma.ticket.groupBy({ by: ["categoryId"], _count: true }),

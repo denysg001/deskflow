@@ -122,6 +122,7 @@ async function main() {
           commentId: comment.id,
           recipientRole: RoleName.ADMIN,
           title: `Nova interação do cliente no chamado ${protocol}`,
+          message: comment.message,
           messagePreview: comment.message,
           createdAt
         }
@@ -136,6 +137,7 @@ async function main() {
             commentId: comment.id,
             recipientUserId: ticket.assignedOperatorId,
             title: `Nova interação do cliente no chamado ${protocol}`,
+            message: comment.message,
             messagePreview: comment.message,
             createdAt
           }
