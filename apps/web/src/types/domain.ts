@@ -24,7 +24,7 @@ export type Ticket = {
   location: { id: string; name: string };
   assignedOperator?: { id: string; name: string } | null;
   supplier?: { id: string; name: string; service: string } | null;
-  comments: Array<{ id: string; message: string; createdAt: string; author: { name: string } }>;
+  comments: Array<{ id: string; message: string; createdAt: string; author: { name: string; role?: { name: "ADMIN" | "OPERATOR" | "CLIENT" } } }>;
   internalNotes: Array<{ id: string; message: string; createdAt: string; author: { name: string } }>;
   attachments: Array<{ id: string; fileName: string; fileUrl: string }>;
   statusHistory: Array<{ id: string; fromStatus?: string | null; toStatus: string; note?: string | null; createdAt: string }>;

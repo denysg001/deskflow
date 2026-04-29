@@ -3,7 +3,7 @@
 import { ArrowLeft, CalendarClock, FileText, History, MessageSquare, Paperclip, Save, ShieldCheck, UserRound } from "lucide-react";
 import Link from "next/link";
 import type React from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,11 @@ export function TicketDetail({ identifier }: { identifier: string }) {
   const [comment, setComment] = useState("");
   const [internalNote, setInternalNote] = useState("");
   const [message, setMessage] = useState("");
+  const [actionForm, setActionForm] = useState({ status: "", assignedOperatorId: "", supplierId: "" });
+  const [isSavingActions, setIsSavingActions] = useState(false);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const commentsEndRef = useRef<HTMLDivElement | null>(null);
+  const commentsScrollRef = useRef<HTMLDivElement | null>(null);
   const user = getUser();
   const mode = user?.role === "CLIENT" ? "portal" : user?.role === "OPERATOR" ? "operator" : "admin";
   const canManage = user?.role === "ADMIN" || user?.role === "OPERATOR";
@@ -45,11 +50,54 @@ export function TicketDetail({ identifier }: { identifier: string }) {
     load().catch((error) => setMessage(error instanceof Error ? error.message : "Erro ao carregar chamado."));
   }, [load]);
 
-  async function updateTicket(payload: Record<string, string | null>) {
+  useEffect(() => {
     if (!ticket) return;
-    const data = await api<{ ticket: Ticket }>(`/tickets/${ticket.id}`, { method: "PATCH", body: JSON.stringify(payload) });
-    setTicket(data.ticket);
-    setMessage("Chamado atualizado com sucesso.");
+    setActionForm({
+      status: ticket.status,
+      assignedOperatorId: ticket.assignedOperator?.id || "",
+      supplierId: ticket.supplier?.id || ""
+    });
+  }, [ticket]);
+
+  const hasUnsavedActions = Boolean(ticket && (
+    actionForm.status !== ticket.status ||
+    actionForm.assignedOperatorId !== (ticket.assignedOperator?.id || "") ||
+    actionForm.supplierId !== (ticket.supplier?.id || "")
+  ));
+
+  const scrollCommentsToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
+    window.requestAnimationFrame(() => commentsEndRef.current?.scrollIntoView({ behavior, block: "end" }));
+  }, []);
+
+  useEffect(() => {
+    scrollCommentsToLatest("auto");
+  }, [ticket?.comments.length, scrollCommentsToLatest]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const timeout = window.setTimeout(() => setToast(null), 3600);
+    return () => window.clearTimeout(timeout);
+  }, [toast]);
+
+  async function saveActionChanges() {
+    if (!ticket) return;
+    setIsSavingActions(true);
+    try {
+      const data = await api<{ ticket: Ticket }>(`/tickets/${ticket.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          status: actionForm.status,
+          assignedOperatorId: actionForm.assignedOperatorId || null,
+          supplierId: actionForm.supplierId || null
+        })
+      });
+      setTicket(data.ticket);
+      setToast({ type: "success", text: "Alterações salvas com sucesso" });
+    } catch {
+      setToast({ type: "error", text: "Não foi possível salvar as alterações" });
+    } finally {
+      setIsSavingActions(false);
+    }
   }
 
   async function addComment(internal = false) {
@@ -60,6 +108,7 @@ export function TicketDetail({ identifier }: { identifier: string }) {
     setComment("");
     setInternalNote("");
     await load();
+    if (!internal) scrollCommentsToLatest();
   }
 
   return (
@@ -76,6 +125,7 @@ export function TicketDetail({ identifier }: { identifier: string }) {
       </div>
 
       {message && <div className="mb-5 rounded-2xl border bg-card p-4 text-sm text-muted-foreground">{message}</div>}
+      {toast && <ToastMessage type={toast.type} text={toast.text} />}
       {!ticket && <Card>Carregando chamado...</Card>}
 
       {ticket && (
@@ -105,16 +155,24 @@ export function TicketDetail({ identifier }: { identifier: string }) {
 
             {canManage && catalog && (
               <Card>
-                <h3 className="mb-4 text-xl font-black">Ações do atendimento</h3>
+                <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <h3 className="text-xl font-black">Ações do atendimento</h3>
+                    {hasUnsavedActions && <p className="text-sm font-bold text-amber-600 dark:text-amber-300">Existem alterações não salvas</p>}
+                  </div>
+                  <Button disabled={!hasUnsavedActions || isSavingActions} onClick={saveActionChanges}>
+                    <Save className="mr-2" size={17} /> {isSavingActions ? "Salvando..." : "Salvar alterações"}
+                  </Button>
+                </div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Select value={ticket.status} onChange={(event) => updateTicket({ status: event.target.value })}>
+                  <Select value={actionForm.status} onChange={(event) => setActionForm({ ...actionForm, status: event.target.value })}>
                     {Object.entries(statusMap).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                   </Select>
-                  <Select value={ticket.assignedOperator?.id || ""} onChange={(event) => updateTicket({ assignedOperatorId: event.target.value || null })}>
+                  <Select value={actionForm.assignedOperatorId} onChange={(event) => setActionForm({ ...actionForm, assignedOperatorId: event.target.value })}>
                     <option value="">Sem operador</option>
                     {catalog.operators.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                   </Select>
-                  <Select value={ticket.supplier?.id || ""} onChange={(event) => updateTicket({ supplierId: event.target.value || null })}>
+                  <Select value={actionForm.supplierId} onChange={(event) => setActionForm({ ...actionForm, supplierId: event.target.value })}>
                     <option value="">Sem fornecedor</option>
                     {catalog.suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                   </Select>
@@ -124,9 +182,10 @@ export function TicketDetail({ identifier }: { identifier: string }) {
 
             <Card>
               <h3 className="mb-4 flex items-center gap-2 text-xl font-black"><MessageSquare size={20} /> Comentários públicos</h3>
-              <div className="mb-4 space-y-3">
-                {ticket.comments.map((item) => <TimelineItem key={item.id} title={item.author.name} date={item.createdAt} text={item.message} />)}
+              <div ref={commentsScrollRef} className="mb-4 max-h-[520px] space-y-4 overflow-y-auto rounded-2xl border bg-muted/30 p-3">
+                {ticket.comments.map((item) => <ChatBubble key={item.id} comment={item} />)}
                 {!ticket.comments.length && <Empty text="Nenhum comentário público ainda." />}
+                <div ref={commentsEndRef} />
               </div>
               <div className="flex flex-col gap-2 md:flex-row">
                 <Input placeholder="Adicionar comentário público" value={comment} onChange={(event) => setComment(event.target.value)} />
@@ -193,6 +252,32 @@ function TimelineItem({ title, date, text, tone }: { title: string; date: string
         <span className="text-xs text-muted-foreground">{new Date(date).toLocaleString("pt-BR")}</span>
       </div>
       <p className="text-muted-foreground">{text}</p>
+    </div>
+  );
+}
+
+function ChatBubble({ comment }: { comment: Ticket["comments"][number] }) {
+  const role = comment.author.role?.name;
+  const isClient = role === "CLIENT";
+  const label = isClient ? "Cliente" : role === "ADMIN" ? "Admin" : "Equipe";
+  return (
+    <div className={`flex ${isClient ? "justify-start" : "justify-end"}`}>
+      <div className={`max-w-[88%] rounded-2xl border p-4 shadow-sm md:max-w-[72%] ${isClient ? "rounded-bl-md bg-card" : "rounded-br-md bg-primary text-white shadow-glow"}`}>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <span className={`text-xs font-black uppercase ${isClient ? "text-primary" : "text-white/85"}`}>{label}</span>
+          <span className={`text-sm font-bold ${isClient ? "text-foreground" : "text-white"}`}>{comment.author.name}</span>
+        </div>
+        <p className={`whitespace-pre-wrap text-sm leading-relaxed ${isClient ? "text-muted-foreground" : "text-white/90"}`}>{comment.message}</p>
+        <p className={`mt-3 text-[11px] ${isClient ? "text-muted-foreground" : "text-white/70"}`}>{new Date(comment.createdAt).toLocaleString("pt-BR")}</p>
+      </div>
+    </div>
+  );
+}
+
+function ToastMessage({ type, text }: { type: "success" | "error"; text: string }) {
+  return (
+    <div className={`fixed right-4 top-4 z-50 rounded-2xl border px-4 py-3 text-sm font-bold shadow-2xl ${type === "success" ? "border-emerald-500/30 bg-emerald-950 text-emerald-100" : "border-rose-500/30 bg-rose-950 text-rose-100"}`}>
+      {text}
     </div>
   );
 }
