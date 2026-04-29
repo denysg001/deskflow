@@ -20,6 +20,7 @@ mkdirSync("uploads", { recursive: true });
 app.register(rateLimit, {
   global: false,
   errorResponseBuilder: (_request, context) => ({
+    statusCode: 429,
     message: `Muitas tentativas de login. Tente novamente em ${Math.ceil(context.ttl / 1000)} segundos.`
   })
 });
