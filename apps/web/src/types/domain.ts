@@ -22,8 +22,10 @@ export type Ticket = {
   requestType: { id: string; name: string };
   priority: { id: string; label: string; color: string };
   location: { id: string; name: string };
-  assignedOperator?: { id: string; name: string };
+  assignedOperator?: { id: string; name: string } | null;
+  supplier?: { id: string; name: string; service: string } | null;
   comments: Array<{ id: string; message: string; createdAt: string; author: { name: string } }>;
   internalNotes: Array<{ id: string; message: string; createdAt: string; author: { name: string } }>;
   attachments: Array<{ id: string; fileName: string; fileUrl: string }>;
+  statusHistory: Array<{ id: string; fromStatus?: string | null; toStatus: string; note?: string | null; createdAt: string }>;
 };

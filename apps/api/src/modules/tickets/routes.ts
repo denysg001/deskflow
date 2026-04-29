@@ -56,7 +56,7 @@ export async function ticketRoutes(app: FastifyInstance) {
   app.get("/tickets/:id", { preHandler: authorize(["ADMIN", "OPERATOR", "CLIENT"]) }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     if (!(await canAccessTicket(request.user!, id))) return reply.code(403).send({ message: "Acesso negado." });
-    const ticket = await prisma.ticket.findUnique({ where: { id }, include: ticketInclude });
+    const ticket = await prisma.ticket.findFirst({ where: { OR: [{ id }, { protocol: id }] }, include: ticketInclude });
     return { ticket };
   });
 

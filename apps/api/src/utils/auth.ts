@@ -43,8 +43,11 @@ export function authorize(roles: AuthRole[]) {
   };
 }
 
-export async function canAccessTicket(user: AuthUser, ticketId: string) {
-  const ticket = await prisma.ticket.findUnique({ where: { id: ticketId }, select: { clientId: true, assignedOperatorId: true } });
+export async function canAccessTicket(user: AuthUser, ticketIdentifier: string) {
+  const ticket = await prisma.ticket.findFirst({
+    where: { OR: [{ id: ticketIdentifier }, { protocol: ticketIdentifier }] },
+    select: { clientId: true, assignedOperatorId: true }
+  });
   if (!ticket) return false;
   if (user.role === "ADMIN") return true;
   if (user.role === "CLIENT") return ticket.clientId === user.clientId;

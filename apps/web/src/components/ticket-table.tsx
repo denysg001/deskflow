@@ -1,10 +1,11 @@
 "use client";
 
 import { Search } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { statusMap } from "@/lib/utils";
-import type { Catalog, Ticket } from "@/types/domain";
+import type { Ticket } from "@/types/domain";
 import { StatusBadge } from "./ui/badge";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
@@ -12,10 +13,6 @@ import { Input, Select } from "./ui/input";
 
 export function TicketTable({ mode = "admin" }: { mode?: "admin" | "portal" | "operator" }) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [catalog, setCatalog] = useState<Catalog | null>(null);
-  const [selected, setSelected] = useState<Ticket | null>(null);
-  const [comment, setComment] = useState("");
-  const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
@@ -25,30 +22,7 @@ export function TicketTable({ mode = "admin" }: { mode?: "admin" | "portal" | "o
 
   useEffect(() => {
     api<{ items: Ticket[]; total: number }>(`/tickets?${query}`).then((data) => { setTickets(data.items); setTotal(data.total); });
-    api<Catalog>("/catalog").then(setCatalog);
   }, [query]);
-
-  async function openTicket(id: string) {
-    const data = await api<{ ticket: Ticket }>(`/tickets/${id}`);
-    setSelected(data.ticket);
-  }
-
-  async function updateTicket(payload: Record<string, string | null>) {
-    if (!selected) return;
-    const data = await api<{ ticket: Ticket }>(`/tickets/${selected.id}`, { method: "PATCH", body: JSON.stringify(payload) });
-    setSelected(data.ticket);
-    api<{ items: Ticket[]; total: number }>(`/tickets?${query}`).then((fresh) => { setTickets(fresh.items); setTotal(fresh.total); });
-  }
-
-  async function addComment(internal = false) {
-    if (!selected) return;
-    const value = internal ? note : comment;
-    if (!value.trim()) return;
-    await api(`/tickets/${selected.id}/${internal ? "internal-notes" : "comments"}`, { method: "POST", body: JSON.stringify({ message: value }) });
-    setComment("");
-    setNote("");
-    openTicket(selected.id);
-  }
 
   return (
     <Card>
@@ -92,7 +66,7 @@ export function TicketTable({ mode = "admin" }: { mode?: "admin" | "portal" | "o
                   <td className="p-4">{ticket.priority.label}</td>
                   <td className="p-4"><StatusBadge status={ticket.status} /></td>
                   <td className="p-4"><span className={overdue ? "font-bold text-rose-500" : ""}>{overdue ? "Vencido" : new Date(ticket.slaDueAt).toLocaleString("pt-BR")}</span></td>
-                  <td className="p-4 text-right"><Button variant="secondary" onClick={() => openTicket(ticket.id)}>Abrir</Button></td>
+                  <td className="p-4 text-right"><Link href={`/tickets/${ticket.id}`}><Button variant="secondary">Abrir</Button></Link></td>
                 </tr>
               );
             })}
@@ -105,41 +79,6 @@ export function TicketTable({ mode = "admin" }: { mode?: "admin" | "portal" | "o
         <span className="text-sm text-muted-foreground">Página {page} de {Math.max(1, Math.ceil(total / 8))}</span>
         <Button variant="secondary" disabled={page >= Math.ceil(total / 8)} onClick={() => setPage(page + 1)}>Próxima</Button>
       </div>
-      {selected && (
-        <div className="mt-6 rounded-2xl border bg-card p-5">
-          <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <p className="text-sm font-bold text-primary">{selected.protocol}</p>
-              <h3 className="text-2xl font-black">{selected.title}</h3>
-              <p className="text-sm text-muted-foreground">{selected.description}</p>
-            </div>
-            <StatusBadge status={selected.status} />
-          </div>
-          {mode !== "portal" && catalog && (
-            <div className="mb-5 grid gap-3 md:grid-cols-3">
-              <Select value={selected.status} onChange={(event) => updateTicket({ status: event.target.value })}>{Object.entries(statusMap).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select>
-              <Select value={selected.assignedOperator?.id || ""} onChange={(event) => updateTicket({ assignedOperatorId: event.target.value || null })}><option value="">Sem operador</option>{catalog.operators.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>
-              <Select onChange={(event) => updateTicket({ supplierId: event.target.value || null })}><option value="">Fornecedor</option>{catalog.suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>
-            </div>
-          )}
-          <div className="grid gap-5 lg:grid-cols-2">
-            <div>
-              <h4 className="mb-2 font-black">Comentários públicos</h4>
-              <div className="mb-3 max-h-52 space-y-2 overflow-auto">{selected.comments.map((item) => <div key={item.id} className="rounded-xl bg-muted p-3 text-sm"><b>{item.author.name}</b><p>{item.message}</p></div>)}</div>
-              <Input placeholder="Adicionar comentário" value={comment} onChange={(event) => setComment(event.target.value)} />
-              <Button className="mt-2" variant="secondary" onClick={() => addComment(false)}>Comentar</Button>
-            </div>
-            {mode !== "portal" && (
-              <div>
-                <h4 className="mb-2 font-black">Notas internas</h4>
-                <div className="mb-3 max-h-52 space-y-2 overflow-auto">{selected.internalNotes.map((item) => <div key={item.id} className="rounded-xl bg-amber-500/10 p-3 text-sm"><b>{item.author.name}</b><p>{item.message}</p></div>)}</div>
-                <Input placeholder="Adicionar nota interna" value={note} onChange={(event) => setNote(event.target.value)} />
-                <Button className="mt-2" variant="secondary" onClick={() => addComment(true)}>Salvar nota</Button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </Card>
   );
 }
