@@ -10,21 +10,94 @@ DeskFlow is a complete MVP help desk and service request system for coworking sp
 - Reports: JSON, CSV and browser-generated PDF
 - Local infrastructure: Docker Compose with PostgreSQL, API, Web and Adminer
 
-## Run Locally
+## How to Open the Program
 
-Copy the environment sample if you want to customize values:
+Follow these steps to run DeskFlow on a MacBook or any computer with Docker.
+
+### 1. Install the required programs
+
+Install Docker Desktop:
+
+- Download: https://www.docker.com/products/docker-desktop/
+- Open Docker Desktop after installing it
+- Wait until Docker shows that it is running
+
+Install Git if your computer does not have it yet:
+
+- Download: https://git-scm.com/downloads
+
+### 2. Download the project
+
+Open Terminal and run:
+
+```bash
+git clone https://github.com/denysg001/deskflow.git
+```
+
+Enter the project folder:
+
+```bash
+cd deskflow
+```
+
+### 3. Create the environment file
+
+Run this command to create the local configuration file:
 
 ```bash
 cp .env.example .env
 ```
 
-Start everything:
+### 4. Start the program
+
+Run:
 
 ```bash
 docker compose up -d
 ```
 
 Docker automatically starts PostgreSQL, applies Prisma migrations, seeds test data, starts the API and starts the web application.
+
+### 5. Open in the browser
+
+After the command finishes, open:
+
+- DeskFlow app: http://localhost:3000
+- Client portal: http://localhost:3000/portal
+- API: http://localhost:3001
+- Database admin panel: http://localhost:8080
+
+### 6. Login
+
+Use one of the test users below.
+
+Admin:
+
+- Email: `admin@cowork.local`
+- Password: `Admin@123`
+
+Operator:
+
+- Email: `operador@cowork.local`
+- Password: `Operador@123`
+
+Client:
+
+- Email: `cliente@cowork.local`
+- Password: `Cliente@123`
+
+## Quick Start
+
+If Docker Desktop is already installed and running:
+
+```bash
+git clone https://github.com/denysg001/deskflow.git
+cd deskflow
+cp .env.example .env
+docker compose up -d
+```
+
+Then open http://localhost:3000.
 
 ## Access URLs
 
@@ -34,7 +107,7 @@ Docker automatically starts PostgreSQL, applies Prisma migrations, seeds test da
 - Adminer: http://localhost:8080
 - Client portal QR target: http://localhost:3000/portal
 
-## Default Users
+## Default Test Users
 
 Admin:
 
