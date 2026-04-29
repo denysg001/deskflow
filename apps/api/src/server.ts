@@ -17,7 +17,12 @@ import { prisma } from "./plugins/prisma.js";
 const app = Fastify({ logger: true });
 mkdirSync("uploads", { recursive: true });
 
-app.register(rateLimit, { global: false });
+app.register(rateLimit, {
+  global: false,
+  errorResponseBuilder: (_request, context) => ({
+    message: `Muitas tentativas de login. Tente novamente em ${Math.ceil(context.ttl / 1000)} segundos.`
+  })
+});
 app.register(cors, { origin: true, credentials: true });
 app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024 } });
 app.register(staticFiles, { root: resolve("uploads"), prefix: "/uploads/", decorateReply: false });

@@ -9,8 +9,7 @@ export async function authRoutes(app: FastifyInstance) {
     config: {
       rateLimit: {
         max: 10,
-        timeWindow: "1 minute",
-        errorResponseBuilder: () => ({ message: "Muitas tentativas de login. Tente novamente em 1 minuto." })
+        timeWindow: "1 minute"
       }
     }
   }, async (request, reply) => {
