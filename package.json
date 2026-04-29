@@ -1,0 +1,16 @@
+{
+  "name": "deskflow",
+  "private": true,
+  "version": "0.1.0",
+  "description": "DeskFlow coworking help desk MVP",
+  "workspaces": [
+    "apps/api",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @deskflow/api & npm run dev -w @deskflow/web",
+    "build": "npm run build -w @deskflow/api && npm run build -w @deskflow/web",
+    "lint": "npm run lint -w @deskflow/web",
+    "test": "npm run test -w @deskflow/api"
+  }
+}

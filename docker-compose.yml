@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: deskflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-deskflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deskflow}
+      POSTGRES_DB: ${POSTGRES_DB:-deskflow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  adminer:
+    image: adminer:4
+    container_name: deskflow-adminer
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: deskflow-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://deskflow:deskflow@postgres:5432/deskflow?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-change-this-local-secret}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      API_URL: ${API_URL:-http://localhost:3001}
+      PORT: 3001
+    ports:
+      - "3001:3001"
+    volumes:
+      - api_uploads:/app/apps/api/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: deskflow-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:3001}
+      API_URL: ${API_URL:-http://localhost:3001}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  api_uploads:

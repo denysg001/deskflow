@@ -1,0 +1,228 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleName {
+  ADMIN
+  OPERATOR
+  CLIENT
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CLIENT
+  WAITING_SUPPLIER
+  RESOLVED
+  CLOSED
+  CANCELED
+}
+
+model Role {
+  id        String   @id @default(cuid())
+  name      RoleName @unique
+  users     User[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("roles")
+}
+
+model User {
+  id             String               @id @default(cuid())
+  name           String
+  email          String               @unique
+  passwordHash   String               @map("password_hash")
+  phone          String?
+  roleId         String               @map("role_id")
+  role           Role                 @relation(fields: [roleId], references: [id])
+  client         Client?
+  assignedTickets Ticket[]            @relation("AssignedTickets")
+  comments       TicketComment[]
+  internalNotes  TicketInternalNote[]
+  auditLogs      AuditLog[]
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Client {
+  id        String   @id @default(cuid())
+  name      String
+  company   String?
+  document  String?
+  phone     String?
+  email     String   @unique
+  userId    String?  @unique @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  tickets   Ticket[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("clients")
+}
+
+model Supplier {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?
+  phone     String?
+  service   String
+  tickets   Ticket[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("suppliers")
+}
+
+model Category {
+  id           String        @id @default(cuid())
+  name         String        @unique
+  description  String?
+  tickets      Ticket[]
+  requestTypes RequestType[]
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@map("categories")
+}
+
+model RequestType {
+  id         String   @id @default(cuid())
+  name       String
+  categoryId String?  @map("category_id")
+  category   Category? @relation(fields: [categoryId], references: [id])
+  tickets    Ticket[]
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([name])
+  @@map("request_types")
+}
+
+model Priority {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  label     String
+  slaHours  Int      @map("sla_hours")
+  color     String
+  tickets   Ticket[]
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("priorities")
+}
+
+model Location {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  floor     String?
+  tickets   Ticket[]
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("locations")
+}
+
+model Ticket {
+  id                 String                @id @default(cuid())
+  protocol           String                @unique
+  title              String
+  description        String
+  status             TicketStatus          @default(OPEN)
+  clientId           String                @map("client_id")
+  client             Client                @relation(fields: [clientId], references: [id])
+  categoryId         String                @map("category_id")
+  category           Category              @relation(fields: [categoryId], references: [id])
+  requestTypeId      String                @map("request_type_id")
+  requestType        RequestType           @relation(fields: [requestTypeId], references: [id])
+  priorityId         String                @map("priority_id")
+  priority           Priority              @relation(fields: [priorityId], references: [id])
+  locationId         String                @map("location_id")
+  location           Location              @relation(fields: [locationId], references: [id])
+  assignedOperatorId String?               @map("assigned_operator_id")
+  assignedOperator   User?                 @relation("AssignedTickets", fields: [assignedOperatorId], references: [id])
+  supplierId         String?               @map("supplier_id")
+  supplier           Supplier?             @relation(fields: [supplierId], references: [id])
+  slaDueAt           DateTime              @map("sla_due_at")
+  resolvedAt         DateTime?             @map("resolved_at")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  comments           TicketComment[]
+  internalNotes      TicketInternalNote[]
+  attachments        TicketAttachment[]
+  statusHistory      TicketStatusHistory[]
+
+  @@index([status])
+  @@index([clientId])
+  @@index([assignedOperatorId])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id        String   @id @default(cuid())
+  ticketId  String   @map("ticket_id")
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id")
+  author    User     @relation(fields: [authorId], references: [id])
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("ticket_comments")
+}
+
+model TicketInternalNote {
+  id        String   @id @default(cuid())
+  ticketId  String   @map("ticket_id")
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId  String   @map("author_id")
+  author    User     @relation(fields: [authorId], references: [id])
+  message   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("ticket_internal_notes")
+}
+
+model TicketAttachment {
+  id        String   @id @default(cuid())
+  ticketId  String   @map("ticket_id")
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fileName  String   @map("file_name")
+  fileUrl   String   @map("file_url")
+  mimeType  String   @map("mime_type")
+  size      Int
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("ticket_attachments")
+}
+
+model TicketStatusHistory {
+  id         String       @id @default(cuid())
+  ticketId   String       @map("ticket_id")
+  ticket     Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  fromStatus TicketStatus? @map("from_status")
+  toStatus   TicketStatus  @map("to_status")
+  changedBy  String?       @map("changed_by")
+  note       String?
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  @@map("ticket_status_history")
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}

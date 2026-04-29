@@ -1,0 +1,29 @@
+export type Catalog = {
+  categories: Array<{ id: string; name: string }>;
+  requestTypes: Array<{ id: string; name: string }>;
+  priorities: Array<{ id: string; name: string; label: string; slaHours: number; color: string }>;
+  locations: Array<{ id: string; name: string }>;
+  operators: Array<{ id: string; name: string; email: string }>;
+  suppliers: Array<{ id: string; name: string; service: string }>;
+  clients: Array<{ id: string; name: string; email: string; company?: string }>;
+};
+
+export type Ticket = {
+  id: string;
+  protocol: string;
+  title: string;
+  description: string;
+  status: string;
+  slaDueAt: string;
+  createdAt: string;
+  resolvedAt?: string;
+  client: { id: string; name: string; company?: string };
+  category: { id: string; name: string };
+  requestType: { id: string; name: string };
+  priority: { id: string; label: string; color: string };
+  location: { id: string; name: string };
+  assignedOperator?: { id: string; name: string };
+  comments: Array<{ id: string; message: string; createdAt: string; author: { name: string } }>;
+  internalNotes: Array<{ id: string; message: string; createdAt: string; author: { name: string } }>;
+  attachments: Array<{ id: string; fileName: string; fileUrl: string }>;
+};

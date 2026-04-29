@@ -1,0 +1,48 @@
+CREATE TYPE "RoleName" AS ENUM ('ADMIN', 'OPERATOR', 'CLIENT');
+CREATE TYPE "TicketStatus" AS ENUM ('OPEN', 'IN_PROGRESS', 'WAITING_CLIENT', 'WAITING_SUPPLIER', 'RESOLVED', 'CLOSED', 'CANCELED');
+
+CREATE TABLE "roles" ("id" TEXT NOT NULL, "name" "RoleName" NOT NULL, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "roles_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "users" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "email" TEXT NOT NULL, "password_hash" TEXT NOT NULL, "phone" TEXT, "role_id" TEXT NOT NULL, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "users_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "clients" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "company" TEXT, "document" TEXT, "phone" TEXT, "email" TEXT NOT NULL, "user_id" TEXT, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "clients_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "suppliers" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "email" TEXT, "phone" TEXT, "service" TEXT NOT NULL, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "suppliers_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "categories" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "description" TEXT, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "categories_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "request_types" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "category_id" TEXT, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "request_types_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "priorities" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "label" TEXT NOT NULL, "sla_hours" INTEGER NOT NULL, "color" TEXT NOT NULL, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "priorities_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "locations" ("id" TEXT NOT NULL, "name" TEXT NOT NULL, "floor" TEXT, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "locations_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "tickets" ("id" TEXT NOT NULL, "protocol" TEXT NOT NULL, "title" TEXT NOT NULL, "description" TEXT NOT NULL, "status" "TicketStatus" NOT NULL DEFAULT 'OPEN', "client_id" TEXT NOT NULL, "category_id" TEXT NOT NULL, "request_type_id" TEXT NOT NULL, "priority_id" TEXT NOT NULL, "location_id" TEXT NOT NULL, "assigned_operator_id" TEXT, "supplier_id" TEXT, "sla_due_at" TIMESTAMP(3) NOT NULL, "resolved_at" TIMESTAMP(3), "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updated_at" TIMESTAMP(3) NOT NULL, CONSTRAINT "tickets_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "ticket_comments" ("id" TEXT NOT NULL, "ticket_id" TEXT NOT NULL, "author_id" TEXT NOT NULL, "message" TEXT NOT NULL, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "ticket_comments_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "ticket_internal_notes" ("id" TEXT NOT NULL, "ticket_id" TEXT NOT NULL, "author_id" TEXT NOT NULL, "message" TEXT NOT NULL, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "ticket_internal_notes_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "ticket_attachments" ("id" TEXT NOT NULL, "ticket_id" TEXT NOT NULL, "file_name" TEXT NOT NULL, "file_url" TEXT NOT NULL, "mime_type" TEXT NOT NULL, "size" INTEGER NOT NULL, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "ticket_attachments_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "ticket_status_history" ("id" TEXT NOT NULL, "ticket_id" TEXT NOT NULL, "from_status" "TicketStatus", "to_status" "TicketStatus" NOT NULL, "changed_by" TEXT, "note" TEXT, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "ticket_status_history_pkey" PRIMARY KEY ("id"));
+CREATE TABLE "audit_logs" ("id" TEXT NOT NULL, "user_id" TEXT, "action" TEXT NOT NULL, "entity" TEXT NOT NULL, "entity_id" TEXT, "metadata" JSONB, "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "audit_logs_pkey" PRIMARY KEY ("id"));
+
+CREATE UNIQUE INDEX "roles_name_key" ON "roles"("name");
+CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+CREATE UNIQUE INDEX "clients_email_key" ON "clients"("email");
+CREATE UNIQUE INDEX "clients_user_id_key" ON "clients"("user_id");
+CREATE UNIQUE INDEX "categories_name_key" ON "categories"("name");
+CREATE UNIQUE INDEX "request_types_name_key" ON "request_types"("name");
+CREATE UNIQUE INDEX "priorities_name_key" ON "priorities"("name");
+CREATE UNIQUE INDEX "locations_name_key" ON "locations"("name");
+CREATE UNIQUE INDEX "tickets_protocol_key" ON "tickets"("protocol");
+CREATE INDEX "tickets_status_idx" ON "tickets"("status");
+CREATE INDEX "tickets_client_id_idx" ON "tickets"("client_id");
+CREATE INDEX "tickets_assigned_operator_id_idx" ON "tickets"("assigned_operator_id");
+
+ALTER TABLE "users" ADD CONSTRAINT "users_role_id_fkey" FOREIGN KEY ("role_id") REFERENCES "roles"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "clients" ADD CONSTRAINT "clients_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "request_types" ADD CONSTRAINT "request_types_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_client_id_fkey" FOREIGN KEY ("client_id") REFERENCES "clients"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_category_id_fkey" FOREIGN KEY ("category_id") REFERENCES "categories"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_request_type_id_fkey" FOREIGN KEY ("request_type_id") REFERENCES "request_types"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_priority_id_fkey" FOREIGN KEY ("priority_id") REFERENCES "priorities"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_location_id_fkey" FOREIGN KEY ("location_id") REFERENCES "locations"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_assigned_operator_id_fkey" FOREIGN KEY ("assigned_operator_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "tickets" ADD CONSTRAINT "tickets_supplier_id_fkey" FOREIGN KEY ("supplier_id") REFERENCES "suppliers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "ticket_comments" ADD CONSTRAINT "ticket_comments_ticket_id_fkey" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ticket_comments" ADD CONSTRAINT "ticket_comments_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ticket_internal_notes" ADD CONSTRAINT "ticket_internal_notes_ticket_id_fkey" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ticket_internal_notes" ADD CONSTRAINT "ticket_internal_notes_author_id_fkey" FOREIGN KEY ("author_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "ticket_attachments" ADD CONSTRAINT "ticket_attachments_ticket_id_fkey" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "ticket_status_history" ADD CONSTRAINT "ticket_status_history_ticket_id_fkey" FOREIGN KEY ("ticket_id") REFERENCES "tickets"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
