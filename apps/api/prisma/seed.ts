@@ -107,11 +107,41 @@ async function main() {
         createdAt
       }
     });
-    await prisma.ticketComment.upsert({
+    const comment = await prisma.ticketComment.upsert({
       where: { id: `comment-${protocol}` },
       update: {},
       create: { id: `comment-${protocol}`, ticketId: ticket.id, authorId: clientUser.id, message: "Chamado registrado pelo portal do cliente.", createdAt }
     });
+    if (index < 3) {
+      await prisma.notification.upsert({
+        where: { id: `notification-admin-comment-${protocol}` },
+        update: {},
+        create: {
+          id: `notification-admin-comment-${protocol}`,
+          ticketId: ticket.id,
+          commentId: comment.id,
+          recipientRole: RoleName.ADMIN,
+          title: `Nova interação do cliente no chamado ${protocol}`,
+          messagePreview: comment.message,
+          createdAt
+        }
+      });
+      if (ticket.assignedOperatorId) {
+        await prisma.notification.upsert({
+          where: { id: `notification-operator-comment-${protocol}` },
+          update: {},
+          create: {
+            id: `notification-operator-comment-${protocol}`,
+            ticketId: ticket.id,
+            commentId: comment.id,
+            recipientUserId: ticket.assignedOperatorId,
+            title: `Nova interação do cliente no chamado ${protocol}`,
+            messagePreview: comment.message,
+            createdAt
+          }
+        });
+      }
+    }
     await prisma.ticketStatusHistory.upsert({
       where: { id: `history-${protocol}` },
       update: {},

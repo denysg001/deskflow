@@ -10,6 +10,7 @@ import { authRoutes } from "./modules/auth/routes.js";
 import { catalogRoutes } from "./modules/catalog/routes.js";
 import { reportRoutes } from "./modules/reports/routes.js";
 import { ticketRoutes } from "./modules/tickets/routes.js";
+import { notificationRoutes } from "./modules/notifications/routes.js";
 import { prisma } from "./plugins/prisma.js";
 
 const app = Fastify({ logger: true });
@@ -25,6 +26,7 @@ app.register(catalogRoutes, { prefix: "/api" });
 app.register(ticketRoutes, { prefix: "/api" });
 app.register(adminRoutes, { prefix: "/api" });
 app.register(reportRoutes, { prefix: "/api" });
+app.register(notificationRoutes, { prefix: "/api" });
 
 app.setErrorHandler((error, _request, reply) => {
   app.log.error(error);

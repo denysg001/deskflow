@@ -28,4 +28,18 @@ export type Ticket = {
   internalNotes: Array<{ id: string; message: string; createdAt: string; author: { name: string } }>;
   attachments: Array<{ id: string; fileName: string; fileUrl: string }>;
   statusHistory: Array<{ id: string; fromStatus?: string | null; toStatus: string; note?: string | null; createdAt: string }>;
+  unreadClientInteractionCount?: number;
+};
+
+export type Notification = {
+  id: string;
+  title: string;
+  messagePreview: string;
+  readAt?: string | null;
+  createdAt: string;
+  ticket: {
+    id: string;
+    protocol: string;
+    client: { name: string };
+  };
 };

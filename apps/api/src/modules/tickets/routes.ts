@@ -8,6 +8,7 @@ import { z } from "zod";
 import { env } from "../../config/env.js";
 import { prisma } from "../../plugins/prisma.js";
 import { authorize, canAccessTicket } from "../../utils/auth.js";
+import { createClientInteractionNotifications, markTicketNotificationsRead, unreadNotificationWhere } from "../../utils/notifications.js";
 import { nextProtocol, ticketInclude } from "../../utils/tickets.js";
 
 const createTicketSchema = z.object({
@@ -31,6 +32,7 @@ export async function ticketRoutes(app: FastifyInstance) {
       clientId: z.string().optional(),
       locationId: z.string().optional(),
       operatorId: z.string().optional(),
+      hasUnreadClientInteraction: z.coerce.boolean().optional(),
       page: z.coerce.number().default(1),
       pageSize: z.coerce.number().default(10)
     }).parse(request.query);
@@ -45,18 +47,28 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (query.priorityId) where.priorityId = query.priorityId;
     if (query.categoryId) where.categoryId = query.categoryId;
     if (query.locationId) where.locationId = query.locationId;
+    if (query.hasUnreadClientInteraction && request.user!.role !== "CLIENT") {
+      where.notifications = { some: unreadNotificationWhere(request.user!) };
+    }
     if (query.search) where.OR = [{ protocol: { contains: query.search, mode: "insensitive" } }, { title: { contains: query.search, mode: "insensitive" } }, { description: { contains: query.search, mode: "insensitive" } }];
     const [items, total] = await Promise.all([
       prisma.ticket.findMany({ where, include: ticketInclude, orderBy: { createdAt: "desc" }, skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
       prisma.ticket.count({ where })
     ]);
-    return { items, total, page: query.page, pageSize: query.pageSize };
+    const enrichedItems = request.user!.role === "CLIENT"
+      ? items.map((item) => ({ ...item, unreadClientInteractionCount: 0 }))
+      : await Promise.all(items.map(async (item) => ({
+        ...item,
+        unreadClientInteractionCount: await prisma.notification.count({ where: { ticketId: item.id, ...unreadNotificationWhere(request.user!) } })
+      })));
+    return { items: enrichedItems, total, page: query.page, pageSize: query.pageSize };
   });
 
   app.get("/tickets/:id", { preHandler: authorize(["ADMIN", "OPERATOR", "CLIENT"]) }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     if (!(await canAccessTicket(request.user!, id))) return reply.code(403).send({ message: "Acesso negado." });
     const ticket = await prisma.ticket.findFirst({ where: { OR: [{ id }, { protocol: id }] }, include: ticketInclude });
+    if (ticket && request.user!.role !== "CLIENT") await markTicketNotificationsRead(ticket.id, request.user!);
     return { ticket };
   });
 
@@ -111,6 +123,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (!(await canAccessTicket(request.user!, id))) return reply.code(403).send({ message: "Acesso negado." });
     const { message } = z.object({ message: z.string().min(2) }).parse(request.body);
     const comment = await prisma.ticketComment.create({ data: { ticketId: id, authorId: request.user!.id, message }, include: { author: { select: { id: true, name: true } } } });
+    if (request.user!.role === "CLIENT") await createClientInteractionNotifications(id, comment.id, message);
     return reply.code(201).send({ comment });
   });
 

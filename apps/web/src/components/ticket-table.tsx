@@ -1,24 +1,30 @@
 "use client";
 
-import { Search } from "lucide-react";
+import { Search, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import { statusMap } from "@/lib/utils";
 import type { Ticket } from "@/types/domain";
-import { StatusBadge } from "./ui/badge";
+import { Badge, StatusBadge } from "./ui/badge";
 import { Card } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input, Select } from "./ui/input";
 
-export function TicketTable({ mode = "admin" }: { mode?: "admin" | "portal" | "operator" }) {
+export function TicketTable({ mode = "admin", hasUnreadClientInteraction = false }: { mode?: "admin" | "portal" | "operator"; hasUnreadClientInteraction?: boolean }) {
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
 
-  const query = useMemo(() => new URLSearchParams({ page: String(page), pageSize: "8", ...(search ? { search } : {}), ...(status ? { status } : {}) }).toString(), [page, search, status]);
+  const query = useMemo(() => new URLSearchParams({
+    page: String(page),
+    pageSize: "8",
+    ...(search ? { search } : {}),
+    ...(status ? { status } : {}),
+    ...(hasUnreadClientInteraction ? { hasUnreadClientInteraction: "true" } : {})
+  }).toString(), [page, search, status, hasUnreadClientInteraction]);
 
   useEffect(() => {
     api<{ items: Ticket[]; total: number }>(`/tickets?${query}`).then((data) => { setTickets(data.items); setTotal(data.total); });
@@ -31,6 +37,11 @@ export function TicketTable({ mode = "admin" }: { mode?: "admin" | "portal" | "o
           <h2 className="text-xl font-black">Chamados</h2>
           <p className="text-sm text-muted-foreground">{total} registros encontrados</p>
         </div>
+        {hasUnreadClientInteraction && (
+          <Link href={mode === "portal" ? "/portal/my-tickets" : "/tickets"} className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-2 text-sm font-bold text-primary">
+            Nova mensagem ativa <X size={14} />
+          </Link>
+        )}
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="relative">
             <Search className="absolute left-3 top-3 text-muted-foreground" size={16} />
@@ -61,7 +72,13 @@ export function TicketTable({ mode = "admin" }: { mode?: "admin" | "portal" | "o
               return (
                 <tr key={ticket.id} className="border-t transition hover:bg-muted/50">
                   <td className="p-4 font-bold">{ticket.protocol}</td>
-                  <td className="p-4">{ticket.title}<div className="text-xs text-muted-foreground">{ticket.category.name} • {ticket.location.name}</div></td>
+                  <td className="p-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span>{ticket.title}</span>
+                      {!!ticket.unreadClientInteractionCount && <Badge className="bg-primary/15 text-primary">Nova mensagem</Badge>}
+                    </div>
+                    <div className="text-xs text-muted-foreground">{ticket.category.name} • {ticket.location.name}</div>
+                  </td>
                   <td className="p-4">{ticket.client.name}</td>
                   <td className="p-4">{ticket.priority.label}</td>
                   <td className="p-4"><StatusBadge status={ticket.status} /></td>

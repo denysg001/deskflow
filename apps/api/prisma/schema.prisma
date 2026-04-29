@@ -157,6 +157,7 @@ model Ticket {
   internalNotes      TicketInternalNote[]
   attachments        TicketAttachment[]
   statusHistory      TicketStatusHistory[]
+  notifications      Notification[]
 
   @@index([status])
   @@index([clientId])
@@ -171,9 +172,30 @@ model TicketComment {
   authorId  String   @map("author_id")
   author    User     @relation(fields: [authorId], references: [id])
   message   String
+  notifications Notification[]
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("ticket_comments")
+}
+
+model Notification {
+  id            String        @id @default(cuid())
+  type          String        @default("CLIENT_INTERACTION")
+  ticketId      String        @map("ticket_id")
+  ticket        Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  commentId     String?       @map("comment_id")
+  comment       TicketComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  recipientRole RoleName?     @map("recipient_role")
+  recipientUserId String?     @map("recipient_user_id")
+  title         String
+  messagePreview String       @map("message_preview")
+  readAt        DateTime?     @map("read_at")
+  createdAt     DateTime      @default(now()) @map("created_at")
+
+  @@index([recipientRole, readAt])
+  @@index([recipientUserId, readAt])
+  @@index([ticketId, readAt])
+  @@map("notifications")
 }
 
 model TicketInternalNote {

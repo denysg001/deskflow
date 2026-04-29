@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
+import { NotificationCenter } from "./notification-center";
 
 const adminItems = [
   ["Dashboard", "/admin", LayoutDashboard],
@@ -47,9 +48,21 @@ export function AppShell({ children, mode = "admin" }: { children: React.ReactNo
             </Link>
           ))}
         </nav>
-        <Button variant="ghost" className="mt-8 w-full justify-start text-slate-300 hover:bg-white/10 hover:text-white" onClick={logout}><LogOut className="mr-2" size={18} /> Sair</Button>
+        <div className="mt-8 flex items-center gap-2">
+          <NotificationCenter />
+          <Button variant="ghost" className="w-full justify-start text-slate-300 hover:bg-white/10 hover:text-white" onClick={logout}><LogOut className="mr-2" size={18} /> Sair</Button>
+        </div>
       </aside>
       <main className="w-full p-4 md:p-8">
+        <div className="mb-4 flex items-center justify-between rounded-2xl border bg-slate-950 p-3 text-white lg:hidden">
+          <Link href={mode === "portal" ? "/portal" : "/admin"} className="flex items-center gap-2 font-black">
+            <QrCode className="text-primary" size={20} /> DeskFlow
+          </Link>
+          <div className="flex items-center gap-2">
+            <NotificationCenter />
+            <Button variant="ghost" className="text-slate-300 hover:bg-white/10 hover:text-white" onClick={logout}><LogOut size={18} /></Button>
+          </div>
+        </div>
         <div className="mx-auto max-w-7xl">{children}</div>
       </main>
     </div>

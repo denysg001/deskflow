@@ -3,6 +3,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../../plugins/prisma.js";
 import { authorize } from "../../utils/auth.js";
+import { notificationRecipientWhere, unreadNotificationWhere } from "../../utils/notifications.js";
 
 const catalogMap = {
   categories: prisma.category,
@@ -12,16 +13,25 @@ const catalogMap = {
 } as const;
 
 export async function adminRoutes(app: FastifyInstance) {
-  app.get("/admin/dashboard", { preHandler: authorize(["ADMIN", "OPERATOR"]) }, async () => {
+  app.get("/admin/dashboard", { preHandler: authorize(["ADMIN", "OPERATOR"]) }, async (request) => {
     const now = new Date();
     const startToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const [ticketsToday, openTickets, inProgressTickets, resolvedTickets, closedTickets, overdueTickets, byCategory, byPriority, byStatus, byLocation, topClients, recentTickets] = await Promise.all([
+    const notificationWhere = notificationRecipientWhere(request.user!);
+    const unreadWhere = unreadNotificationWhere(request.user!);
+    const [ticketsToday, openTickets, inProgressTickets, resolvedTickets, closedTickets, overdueTickets, unreadClientInteractions, latestClientInteractions, byCategory, byPriority, byStatus, byLocation, topClients, recentTickets] = await Promise.all([
       prisma.ticket.count({ where: { createdAt: { gte: startToday } } }),
       prisma.ticket.count({ where: { status: "OPEN" } }),
       prisma.ticket.count({ where: { status: "IN_PROGRESS" } }),
       prisma.ticket.count({ where: { status: "RESOLVED" } }),
       prisma.ticket.count({ where: { status: "CLOSED" } }),
       prisma.ticket.count({ where: { slaDueAt: { lt: now }, status: { notIn: ["RESOLVED", "CLOSED", "CANCELED"] } } }),
+      prisma.notification.count({ where: unreadWhere }),
+      prisma.notification.findMany({
+        where: notificationWhere,
+        include: { ticket: { include: { client: true } } },
+        orderBy: [{ readAt: "asc" }, { createdAt: "desc" }],
+        take: 6
+      }),
       prisma.ticket.groupBy({ by: ["categoryId"], _count: true }),
       prisma.ticket.groupBy({ by: ["priorityId"], _count: true }),
       prisma.ticket.groupBy({ by: ["status"], _count: true }),
@@ -40,7 +50,8 @@ export async function adminRoutes(app: FastifyInstance) {
     const nameById = <T extends { id: string; name?: string; label?: string }>(list: T[], id: string) => list.find((item) => item.id === id)?.name || list.find((item) => item.id === id)?.label || "Não informado";
     const ticketsOverTime = await prisma.$queryRawUnsafe<Array<{ day: Date; count: bigint }>>(`SELECT date_trunc('day', created_at) AS day, count(*) AS count FROM tickets GROUP BY 1 ORDER BY 1`);
     return {
-      cards: { ticketsToday, openTickets, inProgressTickets, resolvedTickets, closedTickets, overdueTickets, averageResolutionHours },
+      cards: { ticketsToday, openTickets, inProgressTickets, resolvedTickets, closedTickets, overdueTickets, unreadClientInteractions, averageResolutionHours },
+      latestClientInteractions,
       byCategory: byCategory.map((item) => ({ name: nameById(categories, item.categoryId), total: item._count })),
       byPriority: byPriority.map((item) => ({ name: nameById(priorities, item.priorityId), total: item._count })),
       byStatus: byStatus.map((item) => ({ name: item.status, total: item._count })),
