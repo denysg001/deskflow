@@ -48,7 +48,7 @@ export async function adminRoutes(app: FastifyInstance) {
     ]);
     const averageResolutionHours = resolved.length ? Math.round(resolved.reduce((sum, item) => sum + ((item.resolvedAt!.getTime() - item.createdAt.getTime()) / 3600000), 0) / resolved.length) : 0;
     const nameById = <T extends { id: string; name?: string; label?: string }>(list: T[], id: string) => list.find((item) => item.id === id)?.name || list.find((item) => item.id === id)?.label || "Não informado";
-    const ticketsOverTime = await prisma.$queryRawUnsafe<Array<{ day: Date; count: bigint }>>(`SELECT date_trunc('day', created_at) AS day, count(*) AS count FROM tickets GROUP BY 1 ORDER BY 1`);
+    const ticketsOverTime = await prisma.$queryRaw<Array<{ day: Date; count: bigint }>>`SELECT date_trunc('day', created_at) AS day, count(*) AS count FROM tickets GROUP BY 1 ORDER BY 1`;
     return {
       cards: { ticketsToday, openTickets, inProgressTickets, resolvedTickets, closedTickets, overdueTickets, unreadClientInteractions, averageResolutionHours },
       latestClientInteractions,

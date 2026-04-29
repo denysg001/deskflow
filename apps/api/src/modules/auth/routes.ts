@@ -5,7 +5,15 @@ import { prisma } from "../../plugins/prisma.js";
 import { authenticate, signToken } from "../../utils/auth.js";
 
 export async function authRoutes(app: FastifyInstance) {
-  app.post("/auth/login", async (request, reply) => {
+  app.post("/auth/login", {
+    config: {
+      rateLimit: {
+        max: 10,
+        timeWindow: "1 minute",
+        errorResponseBuilder: () => ({ message: "Muitas tentativas de login. Tente novamente em 1 minuto." })
+      }
+    }
+  }, async (request, reply) => {
     const body = z.object({ email: z.string().email(), password: z.string().min(1) }).parse(request.body);
     const user = await prisma.user.findUnique({ where: { email: body.email }, include: { role: true, client: true } });
     if (!user || !(await bcrypt.compare(body.password, user.passwordHash))) {

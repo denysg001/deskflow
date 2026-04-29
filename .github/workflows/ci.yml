@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check (API)
+        run: npx tsc --noEmit
+        working-directory: apps/api
+
+      - name: Type check (Web)
+        run: npx tsc --noEmit
+        working-directory: apps/web
+
+      - name: Lint (Web)
+        run: npm run lint -w @deskflow/web
+
+      - name: Tests (API)
+        run: npm run test -w @deskflow/api

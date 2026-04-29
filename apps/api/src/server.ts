@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
+import rateLimit from "@fastify/rate-limit";
 import staticFiles from "@fastify/static";
 import Fastify from "fastify";
 import { mkdirSync } from "fs";
@@ -16,6 +17,7 @@ import { prisma } from "./plugins/prisma.js";
 const app = Fastify({ logger: true });
 mkdirSync("uploads", { recursive: true });
 
+app.register(rateLimit, { global: false });
 app.register(cors, { origin: true, credentials: true });
 app.register(multipart, { limits: { fileSize: 8 * 1024 * 1024 } });
 app.register(staticFiles, { root: resolve("uploads"), prefix: "/uploads/", decorateReply: false });
