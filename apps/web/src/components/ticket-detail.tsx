@@ -8,7 +8,7 @@ import { AppShell } from "@/components/app-shell";
 import { Badge, StatusBadge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input, Select } from "@/components/ui/input";
+import { Input, Select, Textarea } from "@/components/ui/input";
 import { api, getUser } from "@/lib/api";
 import { statusMap } from "@/lib/utils";
 import type { Catalog, Ticket } from "@/types/domain";
@@ -19,7 +19,18 @@ export function TicketDetail({ identifier }: { identifier: string }) {
   const [comment, setComment] = useState("");
   const [internalNote, setInternalNote] = useState("");
   const [message, setMessage] = useState("");
-  const [actionForm, setActionForm] = useState({ status: "", assignedOperatorId: "", supplierId: "" });
+  const [actionForm, setActionForm] = useState({
+    title: "",
+    description: "",
+    categoryId: "",
+    requestTypeId: "",
+    locationId: "",
+    priorityId: "",
+    status: "",
+    assignedOperatorId: "",
+    supplierId: "",
+    slaDueAt: ""
+  });
   const [isSavingActions, setIsSavingActions] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const commentsEndRef = useRef<HTMLDivElement | null>(null);
@@ -27,6 +38,7 @@ export function TicketDetail({ identifier }: { identifier: string }) {
   const user = getUser();
   const mode = user?.role === "CLIENT" ? "portal" : user?.role === "OPERATOR" ? "operator" : "admin";
   const canManage = user?.role === "ADMIN" || user?.role === "OPERATOR";
+  const isAdmin = user?.role === "ADMIN";
 
   const sla = useMemo(() => {
     if (!ticket) return { label: "Carregando", className: "bg-muted text-muted-foreground" };
@@ -53,16 +65,30 @@ export function TicketDetail({ identifier }: { identifier: string }) {
   useEffect(() => {
     if (!ticket) return;
     setActionForm({
+      title: ticket.title,
+      description: ticket.description,
+      categoryId: ticket.category.id,
+      requestTypeId: ticket.requestType.id,
+      locationId: ticket.location.id,
+      priorityId: ticket.priority.id,
       status: ticket.status,
       assignedOperatorId: ticket.assignedOperator?.id || "",
-      supplierId: ticket.supplier?.id || ""
+      supplierId: ticket.supplier?.id || "",
+      slaDueAt: toDateTimeLocalValue(ticket.slaDueAt)
     });
   }, [ticket]);
 
   const hasUnsavedActions = Boolean(ticket && (
+    actionForm.title !== ticket.title ||
+    actionForm.description !== ticket.description ||
+    actionForm.categoryId !== ticket.category.id ||
+    actionForm.requestTypeId !== ticket.requestType.id ||
+    actionForm.locationId !== ticket.location.id ||
+    actionForm.priorityId !== ticket.priority.id ||
     actionForm.status !== ticket.status ||
     actionForm.assignedOperatorId !== (ticket.assignedOperator?.id || "") ||
-    actionForm.supplierId !== (ticket.supplier?.id || "")
+    actionForm.supplierId !== (ticket.supplier?.id || "") ||
+    actionForm.slaDueAt !== toDateTimeLocalValue(ticket.slaDueAt)
   ));
 
   const scrollCommentsToLatest = useCallback((behavior: ScrollBehavior = "smooth") => {
@@ -86,8 +112,17 @@ export function TicketDetail({ identifier }: { identifier: string }) {
       const data = await api<{ ticket: Ticket }>(`/tickets/${ticket.id}`, {
         method: "PATCH",
         body: JSON.stringify({
+          ...(isAdmin ? {
+            title: actionForm.title,
+            description: actionForm.description,
+            categoryId: actionForm.categoryId,
+            requestTypeId: actionForm.requestTypeId,
+            locationId: actionForm.locationId,
+            priorityId: actionForm.priorityId,
+            assignedOperatorId: actionForm.assignedOperatorId || null,
+            slaDueAt: new Date(actionForm.slaDueAt).toISOString()
+          } : {}),
           status: actionForm.status,
-          assignedOperatorId: actionForm.assignedOperatorId || null,
           supplierId: actionForm.supplierId || null
         })
       });
@@ -148,7 +183,7 @@ export function TicketDetail({ identifier }: { identifier: string }) {
                 <Info label="Prioridade" value={ticket.priority.label} icon={<ShieldCheck size={17} />} />
                 <Info label="Vencimento SLA" value={new Date(ticket.slaDueAt).toLocaleString("pt-BR")} icon={<CalendarClock size={17} />} />
                 <Info label="Operador" value={ticket.assignedOperator?.name || "Sem operador"} icon={<UserRound size={17} />} />
-                <Info label="Fornecedor" value={ticket.supplier?.name || "Sem fornecedor"} icon={<ShieldCheck size={17} />} />
+                {canManage && <Info label="Fornecedor" value={ticket.supplier?.name || "Sem fornecedor"} icon={<ShieldCheck size={17} />} />}
                 <Info label="Criado em" value={new Date(ticket.createdAt).toLocaleString("pt-BR")} icon={<CalendarClock size={17} />} />
               </div>
             </Card>
@@ -157,25 +192,50 @@ export function TicketDetail({ identifier }: { identifier: string }) {
               <Card>
                 <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <div>
-                    <h3 className="text-xl font-black">Ações do atendimento</h3>
+                    <h3 className="text-xl font-black">Triagem do chamado</h3>
                     {hasUnsavedActions && <p className="text-sm font-bold text-amber-600 dark:text-amber-300">Existem alterações não salvas</p>}
                   </div>
                   <Button disabled={!hasUnsavedActions || isSavingActions} onClick={saveActionChanges}>
-                    <Save className="mr-2" size={17} /> {isSavingActions ? "Salvando..." : "Salvar alterações"}
+                    <Save className="mr-2" size={17} /> {isSavingActions ? "Salvando..." : "Salvar triagem"}
                   </Button>
                 </div>
+                {isAdmin && (
+                  <div className="mb-3 grid gap-3">
+                    <Input placeholder="Título" value={actionForm.title} onChange={(event) => setActionForm({ ...actionForm, title: event.target.value })} />
+                    <Textarea placeholder="Descrição" value={actionForm.description} onChange={(event) => setActionForm({ ...actionForm, description: event.target.value })} />
+                  </div>
+                )}
                 <div className="grid gap-3 md:grid-cols-3">
+                  {isAdmin && (
+                    <>
+                      <Select value={actionForm.categoryId} onChange={(event) => setActionForm({ ...actionForm, categoryId: event.target.value })}>
+                        {catalog.categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      </Select>
+                      <Select value={actionForm.requestTypeId} onChange={(event) => setActionForm({ ...actionForm, requestTypeId: event.target.value })}>
+                        {catalog.requestTypes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      </Select>
+                      <Select value={actionForm.locationId} onChange={(event) => setActionForm({ ...actionForm, locationId: event.target.value })}>
+                        {catalog.locations.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      </Select>
+                      <Select value={actionForm.priorityId} onChange={(event) => setActionForm({ ...actionForm, priorityId: event.target.value })}>
+                        {catalog.priorities.map((item) => <option key={item.id} value={item.id}>{item.label} • SLA {item.slaHours}h</option>)}
+                      </Select>
+                    </>
+                  )}
                   <Select value={actionForm.status} onChange={(event) => setActionForm({ ...actionForm, status: event.target.value })}>
                     {Object.entries(statusMap).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
                   </Select>
-                  <Select value={actionForm.assignedOperatorId} onChange={(event) => setActionForm({ ...actionForm, assignedOperatorId: event.target.value })}>
-                    <option value="">Sem operador</option>
-                    {catalog.operators.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </Select>
+                  {isAdmin && (
+                    <Select value={actionForm.assignedOperatorId} onChange={(event) => setActionForm({ ...actionForm, assignedOperatorId: event.target.value })}>
+                      <option value="">Sem operador</option>
+                      {catalog.operators.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </Select>
+                  )}
                   <Select value={actionForm.supplierId} onChange={(event) => setActionForm({ ...actionForm, supplierId: event.target.value })}>
                     <option value="">Sem fornecedor</option>
                     {catalog.suppliers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                   </Select>
+                  {isAdmin && <Input type="datetime-local" value={actionForm.slaDueAt} onChange={(event) => setActionForm({ ...actionForm, slaDueAt: event.target.value })} />}
                 </div>
               </Card>
             )}
@@ -242,6 +302,12 @@ function Info({ label, value, icon }: { label: string; value: string; icon: Reac
       <p className="font-bold">{value}</p>
     </div>
   );
+}
+
+function toDateTimeLocalValue(value: string) {
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
 function TimelineItem({ title, date, text, tone }: { title: string; date: string; text: string; tone?: "internal" }) {

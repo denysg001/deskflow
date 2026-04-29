@@ -22,6 +22,66 @@ const createTicketSchema = z.object({
   assignedOperatorId: z.string().optional().nullable()
 });
 
+const updateTicketSchema = z.object({
+  title: z.string().min(3).optional(),
+  description: z.string().min(5).optional(),
+  categoryId: z.string().optional(),
+  requestTypeId: z.string().optional(),
+  locationId: z.string().optional(),
+  priorityId: z.string().optional(),
+  status: z.nativeEnum(TicketStatus).optional(),
+  assignedOperatorId: z.string().nullable().optional(),
+  supplierId: z.string().nullable().optional(),
+  slaDueAt: z.string().datetime().optional()
+});
+
+const trackedFields = {
+  title: "Título",
+  description: "Descrição",
+  categoryId: "Categoria",
+  requestTypeId: "Tipo de solicitação",
+  locationId: "Local",
+  priorityId: "Prioridade",
+  status: "Status",
+  assignedOperatorId: "Operador",
+  supplierId: "Fornecedor",
+  slaDueAt: "Vencimento do SLA"
+} as const;
+
+async function resolveTicketValue(field: keyof typeof trackedFields, value: string | null | undefined) {
+  if (!value) return "Não informado";
+  if (field === "categoryId") return (await prisma.category.findUnique({ where: { id: value } }))?.name || value;
+  if (field === "requestTypeId") return (await prisma.requestType.findUnique({ where: { id: value } }))?.name || value;
+  if (field === "locationId") return (await prisma.location.findUnique({ where: { id: value } }))?.name || value;
+  if (field === "priorityId") return (await prisma.priority.findUnique({ where: { id: value } }))?.label || value;
+  if (field === "assignedOperatorId") return (await prisma.user.findUnique({ where: { id: value } }))?.name || value;
+  if (field === "supplierId") return (await prisma.supplier.findUnique({ where: { id: value } }))?.name || value;
+  if (field === "slaDueAt") return new Date(value).toLocaleString("pt-BR");
+  return value;
+}
+
+async function buildChangeAudit(current: Record<string, any>, body: Record<string, any>) {
+  const changes = [];
+  for (const field of Object.keys(trackedFields) as Array<keyof typeof trackedFields>) {
+    if (!(field in body)) continue;
+    const nextValue = field === "slaDueAt" && body[field] ? new Date(body[field]).toISOString() : body[field];
+    const currentValue = field === "slaDueAt" && current[field] ? new Date(current[field]).toISOString() : current[field];
+    if ((currentValue ?? null) === (nextValue ?? null)) continue;
+    changes.push({
+      field,
+      label: trackedFields[field],
+      from: await resolveTicketValue(field, currentValue),
+      to: await resolveTicketValue(field, nextValue)
+    });
+  }
+  return changes;
+}
+
+function sanitizeTicketForUser(ticket: any, role: string) {
+  if (role !== "CLIENT") return ticket;
+  return { ...ticket, internalNotes: [], supplier: null, supplierId: null };
+}
+
 export async function ticketRoutes(app: FastifyInstance) {
   app.get("/tickets", { preHandler: authorize(["ADMIN", "OPERATOR", "CLIENT"]) }, async (request) => {
     const query = z.object({
@@ -61,7 +121,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         ...item,
         unreadClientInteractionCount: await prisma.notification.count({ where: { ticketId: item.id, ...unreadNotificationWhere(request.user!) } })
       })));
-    return { items: enrichedItems, total, page: query.page, pageSize: query.pageSize };
+    return { items: enrichedItems.map((item) => sanitizeTicketForUser(item, request.user!.role)), total, page: query.page, pageSize: query.pageSize };
   });
 
   app.get("/tickets/:id", { preHandler: authorize(["ADMIN", "OPERATOR", "CLIENT"]) }, async (request, reply) => {
@@ -69,7 +129,7 @@ export async function ticketRoutes(app: FastifyInstance) {
     if (!(await canAccessTicket(request.user!, id))) return reply.code(403).send({ message: "Acesso negado." });
     const ticket = await prisma.ticket.findFirst({ where: { OR: [{ id }, { protocol: id }] }, include: ticketInclude });
     if (ticket && request.user!.role !== "CLIENT") await markTicketNotificationsRead(ticket.id, request.user!);
-    return { ticket };
+    return { ticket: ticket ? sanitizeTicketForUser(ticket, request.user!.role) : null };
   });
 
   app.post("/tickets", { preHandler: authorize(["ADMIN", "CLIENT"]) }, async (request, reply) => {
@@ -87,7 +147,7 @@ export async function ticketRoutes(app: FastifyInstance) {
         requestTypeId: body.requestTypeId,
         priorityId: body.priorityId,
         locationId: body.locationId,
-        assignedOperatorId: body.assignedOperatorId || null,
+        assignedOperatorId: request.user!.role === "ADMIN" ? body.assignedOperatorId || null : null,
         slaDueAt: new Date(Date.now() + priority.slaHours * 60 * 60 * 1000),
         statusHistory: { create: { toStatus: "OPEN", changedBy: request.user!.id, note: "Chamado criado." } }
       },
@@ -99,22 +159,46 @@ export async function ticketRoutes(app: FastifyInstance) {
   app.patch("/tickets/:id", { preHandler: authorize(["ADMIN", "OPERATOR"]) }, async (request, reply) => {
     const { id } = z.object({ id: z.string() }).parse(request.params);
     if (!(await canAccessTicket(request.user!, id))) return reply.code(403).send({ message: "Acesso negado." });
-    const body = z.object({
-      status: z.nativeEnum(TicketStatus).optional(),
-      assignedOperatorId: z.string().nullable().optional(),
-      supplierId: z.string().nullable().optional(),
-      priorityId: z.string().optional()
-    }).parse(request.body);
-    const current = await prisma.ticket.findUniqueOrThrow({ where: { id } });
+    const body = updateTicketSchema.parse(request.body);
+    const current = await prisma.ticket.findUniqueOrThrow({
+      where: { id },
+      include: { category: true, requestType: true, location: true, priority: true, assignedOperator: true, supplier: true }
+    });
+    const allowedBody = request.user!.role === "ADMIN"
+      ? body
+      : {
+        status: body.status,
+        supplierId: body.supplierId
+      };
+    const data = Object.fromEntries(Object.entries(allowedBody).filter(([, value]) => value !== undefined));
+    const changes = await buildChangeAudit(current, data);
     const ticket = await prisma.ticket.update({
       where: { id },
       data: {
-        ...body,
-        resolvedAt: body.status === "RESOLVED" || body.status === "CLOSED" ? new Date() : current.resolvedAt,
-        statusHistory: body.status && body.status !== current.status ? { create: { fromStatus: current.status, toStatus: body.status, changedBy: request.user!.id, note: "Status atualizado." } } : undefined
+        ...data,
+        slaDueAt: data.slaDueAt ? new Date(data.slaDueAt) : undefined,
+        resolvedAt: data.status === "RESOLVED" || data.status === "CLOSED" ? new Date() : current.resolvedAt,
+        statusHistory: data.status && data.status !== current.status ? { create: { fromStatus: current.status, toStatus: data.status as TicketStatus, changedBy: request.user!.id, note: "Status atualizado." } } : undefined
       },
       include: ticketInclude
     });
+    if (changes.length) {
+      await prisma.auditLog.createMany({
+        data: changes.map((change) => ({
+          userId: request.user!.id,
+          action: "TICKET_TRIAGE_UPDATED",
+          entity: "Ticket",
+          entityId: id,
+          metadata: {
+            protocol: ticket.protocol,
+            message: `${change.label} alterado de "${change.from}" para "${change.to}"`,
+            field: change.field,
+            from: change.from,
+            to: change.to
+          }
+        }))
+      });
+    }
     return { ticket };
   });
 
